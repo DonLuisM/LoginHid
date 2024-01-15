@@ -1,31 +1,33 @@
 import { View, Text, SafeAreaView, Button, TouchableOpacity, 
-  TextInput, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
-import React, { useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+  TextInput, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import SVGImg from '../assets/hidoclogo.svg';
 import { Icon } from 'react-native-elements/dist/icons/Icon';
-
-
+import axios from 'axios';
+import { useDispatch, useSelector } from 'react-redux';
+import { apiClearError, apiError, apiPending, apiSetAutenticado, apiSuccess, apiSuccessToken } from '../slices/dataSlice';
 
 const NewAccount = () => {
+
   const navigation = useNavigation();
+  const dispatch = useDispatch();
 
-  const handleGoBackLogin2 = () => {
-      navigation.goBack();
-  }
-
-  //const [nombre, onChangeNombre] = useState('');
+  const [handle, setHandle] = useState('');
   const [email, onChangeEmail] = useState('');
   const [password, onChangePassword] = useState('');
   const [confirmPass, onChangeConfirmPass] = useState('');
-  const [inputValue, setInputValue] = useState('');
-  const [error, setError] = useState('');
-  
+
+  const [terminos, setTerminos] = useState(false);
 
   const [showPass, setShowPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
+  const loading = useSelector((state) => state.data.loading)
+  const error = useSelector((state) => state.data.error)
+  const token = useSelector((state) => state.data.token)
 
+  
   const togglePasswordVisibility = () => {
     setShowPass(!showPass);
   };
@@ -34,23 +36,53 @@ const NewAccount = () => {
     setShowConfirmPass(!showConfirmPass);
   };
 
-  const handleInputChange = (text) => {
-  setInputValue(text);
-  setError(''); // Limpiar el mensaje de error al cambiar el valor
+  const handlePost = () => {
+ 
+    dispatch(apiPending());
+    const data = { 
+      handle: "@" + handle, 
+      email: email, 
+      password: password, 
+      confirmPassword: confirmPass
+    }
+    const apiUrl = 'https://us-central1-hidocfun-f7947.cloudfunctions.net/api/signup';
+    axios.post(apiUrl, data)
+      .then((response) => {
+        dispatch(apiClearError());
+        dispatch(apiSuccessToken(response.data));
+        dispatch(apiSetAutenticado());
+        obtenerInfoUsuario();
+        dispatch(apiClearError());
+        console.log(data);
+      })
+      .catch((error) => {
+        dispatch(apiError(error.response.data));
+        console.log(error.response.data);
+      });
   };
 
-  const handleValidation = () => {
-  if (inputValue.trim() === '') {
-    setError('  El campo no puede estar vacío');
-    return;
-  } setError(!error)
-  console.log('¡Validación exitosa!');
-  };
+  const obtenerInfoUsuario = () => {
+    const getUrl = `https://us-central1-hidocfun-f7947.cloudfunctions.net/api/usuarios/${email}`
+    axios.get(getUrl)
+      .then((response) => {
+        dispatch(apiSuccess(response.data[0]))
+        console.log(response.data[0])
+      })
+      .catch((error) => {
+        dispatch(apiError(error.response.data))
+        console.log(error.response.data);
+      })
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(apiClearError());
+    }, [])
+  );
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <ScrollView className="bg-white">
-    <SafeAreaView className="bg-white flex-1 items-center ">
         <KeyboardAvoidingView>
             <View className="items-center -mt-3">
                 <SVGImg width={300} height={300} />
@@ -58,20 +90,21 @@ const NewAccount = () => {
                   Regístrate
                 </Text>
             </View>
-      <View className="w-screen h-auto items-center">
-            <View className="h-auto flex-row bg-white justify-between items-center mt-5 mx-7 pl-6 
-              pr-4 py-4 rounded-xl border border-solid border-slate-200 border-opacity-10" >
+        <View className="w-screen h-auto items-center">
+            <View className={`h-auto flex-row bg-white justify-between items-center mt-2 mx-7 pl-6 
+              pr-4 py-4 rounded-xl border border-solid border-slate-200 ${error.handle && "border-[#FA6972]"} border-opacity-10`}>
                 <TextInput
                     autoComplete='name'
-                    placeholder='Nombre'
+                    placeholder='Nombre de Usuario'
                     className="w-auto text-xl flex-1"
-                    onChangeText={handleInputChange}
-                    value={inputValue}
+                    onChangeText={setHandle}
+                    value={handle}
                 />
-                {error !== '' && <Text>{error}</Text>}
             </View>
-            <View className="h-auto flex-row bg-white justify-between items-center mt-5 mx-7 pl-6 
-               pr-4 py-4 rounded-xl border border-solid border-slate-200 border-opacity-10" >
+            <Text className={` w-screen pl-6 pr-4 font-medium text-sm text-transparent ${error.handle && "text-[#FA6972]"}`}>{error.handle}</Text>
+
+            <View className={`h-auto flex-row bg-white justify-between items-center mt-2 mx-7 pl-6 
+               pr-4 py-4 rounded-xl border border-solid border-slate-200 ${error.email && "border-[#FA6972]"} border-opacity-10`} >
                 <TextInput
                     autoComplete='email'
                     placeholder='email@email.com'
@@ -81,8 +114,11 @@ const NewAccount = () => {
                     value={email}
                 />
             </View>
-            <View className={` h-auto flex-row bg-white justify-between items-center mt-5 mx-7 pl-6 
-              pr-4 py-4 rounded-xl border border-solid border-slate-200 border-opacity-10`}>
+            <Text className={` w-screen pl-6 pr-4 font-medium text-sm text-transparent ${error.email && "text-[#FA6972]"} `}>
+              {error.email}</Text>
+
+            <View className={` h-auto flex-row bg-white justify-between items-center mt-2 mx-7 pl-6 
+              pr-4 py-4 rounded-xl border border-solid border-slate-200 ${error.password && "border-[#FA6972]"} border-opacity-10`}>
             <TextInput
               autoComplete='password'
               placeholder='Contraseña'
@@ -108,8 +144,11 @@ const NewAccount = () => {
                 />}
             </TouchableOpacity>
             </View> 
-            <View className={` h-auto flex-row bg-white justify-between items-center mt-5 mx-7 pl-6 
-              pr-4 py-4 rounded-xl border border-solid border-slate-200 border-opacity-10`}>
+            <Text className={` w-screen pl-6 pr-4 font-medium text-sm text-transparent ${(error.password || error.error) && "text-[#FA6972]"} `}>
+              {error.password}</Text>
+
+            <View className={` h-auto flex-row bg-white justify-between items-center mt-2 mx-7 pl-6 
+              pr-4 py-4 rounded-xl border border-solid border-slate-200 ${(error.confirmPassword || error.error) && "border-[#FA6972]"} border-opacity-10`}>
             <TextInput
               autoComplete='password'
               placeholder='Confirmar Contraseña'
@@ -135,93 +174,58 @@ const NewAccount = () => {
                 />}
             </TouchableOpacity>
             </View>
+            <Text className={` w-screen pl-6 pr-4 font-medium text-sm text-transparent ${(error.confirmPassword || error.passwords || error.error) && "text-[#FA6972]"} `}>
+              {(error.confirmPassword || error.passwords || error.error)}</Text>
 
-        <View className="w-full mt-3 flex-row items-center justify-center">
-          <Text className="text-black text-base font-medium p-2 mt-1">Aceptar términos y condiciones</Text>
-          <TouchableOpacity 
-            className="text-white text-center mt-1"
-            onPress={handleValidation}>
-        {!error ? (
-            <Icon
-            className="p-2 bg-black rounded-full w-10 mt-5"
-            name='verified'
-            type='material'
-            color='gray' 
-          />
-            ): 
-            <Icon
-            className="p-2 bg-black rounded-full w-10 mt-5"
-            name='verified'
-            type='material'
-            color='blue' 
-          />
-          }
-          </TouchableOpacity>
+          <View className="flex-row items-center mt-3 pl-3 ">
+            <TouchableOpacity onPress={() => {setTerminos(!terminos)}} className=" pl-6 pr-2">
+              {!terminos ? (
+              <Icon 
+                type='material' 
+                name="toggle-off" 
+                color="gray"
+                size={31} 
+                />) : (<Icon 
+                type='material' 
+                name="toggle-on" 
+                color="green" 
+                size={31} 
+                />)}
+            </TouchableOpacity>
+            <Text className=" text-base tracking-tight flex-1 -mt-1 pr-4">Estoy de acuerdo con los 
+              Términos de Servicio y Políticas de Seguridad
+            </Text>
+
           </View>
 
-          <TouchableOpacity onPress={()=>navigation.navigate('Start')} 
-            className='bg-sky-500 relative justify-center mt-4 px-16 py-4 rounded-xl'>
-            <Text className='text-white text-xl font-semibold'>Registrarme</Text>
+          <View>
+          {loading ? (
+            <ActivityIndicator size="large" color="gray" className="mt-auto py-4" />
+          ) : (
+          <TouchableOpacity 
+            onPress={handlePost}
+            className={`bg-sky-500 relative justify-center mt-6 px-16 py-4 rounded-xl
+              ${!terminos && "opacity-50"}`}
+              disabled={!terminos}
+              >
+            <Text className='text-white text-xl font-semibold'> Registrarme </Text>
           </TouchableOpacity>
+
+          )}
+          </View>
           
           <View className="h-auto items-center justify-center"> 
             <TouchableOpacity
-              onPress={handleGoBackLogin2}>
-            <Text className="text-sky-500 items-center text-center text-lg tracking-tight whitespace-nowrap mt-12">
+              onPress={() => navigation.navigate("Login")}>
+            <Text className="text-sky-500 items-center text-center text-lg tracking-tight whitespace-nowrap mt-10">
                 Tienes una Cuenta? Inicia Sesión</Text>
             </TouchableOpacity>
           </View>
-      </View>
-        
-
-            
+      </View> 
         </KeyboardAvoidingView>
-    </SafeAreaView>
     </ScrollView>
     </TouchableWithoutFeedback>
     )
   }
-
-
-
-
-  /*
-  return (
-    <View>
-        <View className="justify-center items-center h-screen">
-        <TextInput
-          placeholder='correo@gmail.com'
-          value={email}
-          onChangeText={text => setEmail(text)}
-          className="p-4 pl-4 w-3/4 h-12 mt-5 border rounded-xl"
-          //className="px-24 py-3 m-5 border rounded-md"
-          //style={styles.boxLogin}
-        />
-        <TextInput
-          placeholder='Contraseña'
-          value={password}
-          onChangeText={text => setPassword(text)}
-          className="p-4 pl-4 w-3/4 h-12 mt-5 border rounded-xl"
-          //style={styles.boxLogin}
-          secureTextEntry
-        />
-        <TextInput
-          placeholder='Confirmar Contraseña'
-          value={password}
-          onChangeText={text => setPassword(text)}
-          className="p-4 pl-4 w-3/4 h-12 mt-5 border rounded-xl"
-          //style={styles.boxLogin}
-          secureTextEntry
-        />
-
-
-        <TouchableOpacity onPress={handleGoBackLogin2}>
-            <Text className="text-black font-semibold text-lg mt-5">Volver a Inicio de Sesión</Text>
-        </TouchableOpacity>
-        </View>
-    </View>
-  )
-}
-*/
 
 export default NewAccount
